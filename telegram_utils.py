@@ -9,6 +9,15 @@ def send_message(chat_id, text):
     response = requests.post(url, json=payload)
     return response.json()
 
+def send_voice(chat_id, audio_file_path):
+    """Envía un mensaje de voz a Telegram usando la API /sendVoice."""
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendVoice"
+    with open(audio_file_path, 'rb') as audio_file:
+        files = {'voice': audio_file}
+        data = {"chat_id": chat_id}
+        response = requests.post(url, data=data, files=files)
+    return response.json()
+
 def get_file_info(file_id):
     """Obtiene la información del archivo (file_path) mediante la API getFile de Telegram."""
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile"

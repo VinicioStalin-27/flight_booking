@@ -16,6 +16,11 @@ model_name = "Helsinki-NLP/opus-mt-es-en"
 t_tokenizer = MarianTokenizer.from_pretrained(model_name)
 t_model = MarianMTModel.from_pretrained(model_name)
 
+# Cargar modelo de traducción (en→es)
+model_name_es = "Helsinki-NLP/opus-mt-en-es"
+t_tokenizer_es = MarianTokenizer.from_pretrained(model_name_es)
+t_model_es = MarianMTModel.from_pretrained(model_name_es)
+
 # Cargar información de aeropuertos (desde CSV en GitHub)
 import pandas as pd
 _airports_url = 'https://raw.githubusercontent.com/datasets/airport-codes/refs/heads/main/data/airport-codes.csv'
@@ -38,6 +43,12 @@ def translate_text(text):
     inputs = t_tokenizer(text, return_tensors="pt", padding=True, truncation=True)
     translated_tokens = t_model.generate(**inputs)
     return t_tokenizer.decode(translated_tokens[0], skip_special_tokens=True)
+
+def translate_text_es(text):
+    """Traduce el texto de español a inglés."""
+    inputs = t_tokenizer_es(text, return_tensors="pt", padding=True, truncation=True)
+    translated_tokens = t_model_es.generate(**inputs)
+    return t_tokenizer_es.decode(translated_tokens[0], skip_special_tokens=True)
 
 
 def parse_date_str(date_str):
@@ -143,15 +154,11 @@ def extract_flight_info(text, pending_fields, info):
       - Número de personas (num_people)
       - Aerolínea (airline)
     """
-    # Traducir el texto para unificar el procesamiento
-    text = translate_text(text)
     doc = nlp(text)
 
     # origin, destination = extract_locations(text)
 
     origin, destination, airline = None, None, None
-    origin_country, destination_country = None, None
-    origin_code, destination_code = None, None
     departure_date, return_date = None, None
     num_people = 1
     stay_duration = None
@@ -189,19 +196,6 @@ def extract_flight_info(text, pending_fields, info):
             destination = locations[0]
         elif 'from' in pending_fields:
             origin = locations[0]
-
-    # Retrieve country + IATA code
-    if origin:
-        match = [(city, country) for (city, country) in airports if city == origin.lower()]
-        if match:
-            origin_country = match[0][1]
-            origin_code = airports[match[0]]["code"]
-
-    if destination:
-        match = [(city, country) for (city, country) in airports if city == destination.lower()]
-        if match:
-            destination_country = match[0][1]
-            destination_code = airports[match[0]]["code"]
 
     # Extract dates
     if dates:
@@ -241,14 +235,34 @@ def extract_flight_info(text, pending_fields, info):
 
     return {
         "from": origin,
-        "from_country": origin_country,
-        "from_code": origin_code,
         "to": destination,
-        "to_country": destination_country,
-        "to_code": destination_code,
         "departure_date": departure_date,
         "return_date": return_date,
         "stay_duration": stay_duration,
         "num_people": num_people,
         "airline": airline
     }
+
+def validate_info(info):
+    if info.get("departure_date") and info.get("return_date") and not info.get("stay_duration"):
+        dep_date = datetime.strptime(info["departure_date"], "%Y-%m-%d")
+        ret_date = datetime.strptime(info["return_date"], "%Y-%m-%d")
+        info["stay_duration"] = (ret_date - dep_date).days
+
+    if info.get("departure_date") and not info.get("return_date") and info.get("stay_duration"):
+        dep_date = datetime.strptime(info["departure_date"], "%Y-%m-%d")
+        info["return_date"] = (dep_date + timedelta(days=info["stay_duration"])).strftime("%Y-%m-%d")
+
+    # Retrieve country + IATA code
+    if info.get('from'):
+        match = [(city, country) for (city, country) in airports if city == info['from'].lower()]
+        if match:
+            info['from_country'] = match[0][1]
+            info['from_code'] = airports[match[0]]["code"]
+
+    if info.get('to'):
+        match = [(city, country) for (city, country) in airports if city == info['to'].lower()]
+        if match:
+            info['to_country'] = match[0][1]
+            info['to_code'] = airports[match[0]]["code"]
+    return info

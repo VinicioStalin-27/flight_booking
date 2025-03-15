@@ -25,5 +25,6 @@ def transcribe_voice(file_id):
 
     # Transcribir el audio usando Whisper
     result = whisper_model.transcribe(temp_filename)
+    detected_lang = result.get("language", "en")
     os.remove(temp_filename)
-    return result["text"].strip()
+    return result["text"].strip(), detected_lang
