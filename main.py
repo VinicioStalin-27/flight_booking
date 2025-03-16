@@ -104,7 +104,12 @@ def chatbot():
             order.feedback_text = text
             order.state = "complete"
             db.session.commit()
-            send_text = "Thank you for your feedback!"
+            if order.feedback == "positive":
+                send_text = "Thank you for your positive feedback!"
+            elif order.feedback == "negative":
+                send_text = "We're sorry to hear that. We'll work to improve our service."
+            else:
+                send_text = "Thank you for your feedback!"
             if lang == 'es':
                 send_text = translate_text_es(send_text)
             send_message(uid, send_text)
